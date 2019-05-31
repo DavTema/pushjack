@@ -778,13 +778,11 @@ def create_socket(host, port, certificate, cert_password):
         raise APNSAuthError('The certificate at {0} is not readable: {1}'
                             .format(certificate, ex))
 
-    cert = init_context(cert=certificate, cert_password=cert_password)
+    context = init_context(cert=certificate, cert_password=cert_password)
 
     sock = socket.socket()
 
-    sock = ssl.wrap_socket(sock,
-                           certfile=cert,
-                           do_handshake_on_connect=False)
+    sock = context.wrap_socket(sock, do_handshake_on_connect=False)
     sock.connect((host, port))
     sock.setblocking(0)
 
