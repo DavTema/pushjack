@@ -29,6 +29,8 @@ import ssl
 import struct
 import time
 
+from hyper.tls import init_context
+
 from .utils import json_dumps, chunk, compact_dict
 from .exceptions import (
     APNSError,
@@ -100,12 +102,14 @@ class APNSClient(object):
 
     def __init__(self,
                  certificate,
+                 cert_password=None,
                  default_error_timeout=APNS_DEFAULT_ERROR_TIMEOUT,
                  default_expiration_offset=APNS_DEFAULT_EXPIRATION_OFFSET,
                  default_batch_size=APNS_DEFAULT_BATCH_SIZE,
                  default_max_payload_length=APNS_DEFAULT_MAX_PAYLOAD_LENGTH,
                  default_retries=APNS_DEFAULT_RETRIES):
         self.certificate = certificate
+        self.cert_password = cert_password
         self.default_error_timeout = default_error_timeout
         self.default_expiration_offset = default_expiration_offset
         self.default_batch_size = default_batch_size
@@ -122,7 +126,7 @@ class APNSClient(object):
 
     def create_connection(self):
         """Create and return new APNS connection to push server."""
-        return APNSConnection(self.host, self.port, self.certificate)
+        return APNSConnection(self.host, self.port, self.certificate, self.cert_password)
 
     def create_feedback_connection(self):
         """Create and return new APNS connection to feedback server."""
@@ -303,10 +307,11 @@ class APNSSandboxClient(APNSClient):
 
 class APNSConnection(object):
     """Manager for APNS socket connection."""
-    def __init__(self, host, port, certificate):
+    def __init__(self, host, port, certificate, cert_password):
         self.host = host
         self.port = port
         self.certificate = certificate
+        self.cert_password = cert_password
         self.sock = None
 
     def connect(self):
@@ -320,7 +325,7 @@ class APNSConnection(object):
                   'certificate at {2}'
                   .format(self.host, self.port, self.certificate))
 
-        self.sock = create_socket(self.host, self.port, self.certificate)
+        self.sock = create_socket(self.host, self.port, self.certificate, self.cert_password)
 
         log.debug('Established connection to APNS on {0}:{1}.'
                   .format(self.host, self.port))
@@ -764,7 +769,7 @@ class APNSExpiredToken(namedtuple('APNSExpiredToken', ['token', 'timestamp'])):
     pass
 
 
-def create_socket(host, port, certificate):
+def create_socket(host, port, certificate, cert_password):
     """Create a socket connection to the APNS server."""
     try:
         with open(certificate, 'r') as fileobj:
@@ -773,10 +778,12 @@ def create_socket(host, port, certificate):
         raise APNSAuthError('The certificate at {0} is not readable: {1}'
                             .format(certificate, ex))
 
+    cert = init_context(cert=certificate, cert_password=cert_password)
+
     sock = socket.socket()
 
     sock = ssl.wrap_socket(sock,
-                           certfile=certificate,
+                           certfile=cert,
                            do_handshake_on_connect=False)
     sock.connect((host, port))
     sock.setblocking(0)
