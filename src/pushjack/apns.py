@@ -782,7 +782,11 @@ def create_socket(host, port, certificate, cert_password):
 
     sock = socket.socket()
 
-    sock = context.wrap_socket(sock, do_handshake_on_connect=False)
+    sock = context.wrap_socket(
+        sock,
+        server_hostname=host,
+        do_handshake_on_connect=False,
+    )
     sock.connect((host, port))
     sock.setblocking(0)
 
